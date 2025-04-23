@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\assets",
+    "\\src",
+    "\\src\\assets",
+    "\\src\\classes",
+    "\\src\\classes\\states",
+    "\\src\\events",
+    "\\src\\ui",
+    "\\styles"
+  ],
+  "SelectedNode": "\\src\\ui\\SettingsScreen.js",
+  "PreviewInSolutionExplorer": false
+}

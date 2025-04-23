@@ -1,0 +1,3 @@
+[build]
+  publish = "public"
+  command = ""     # no build step; we’re serving files directly
