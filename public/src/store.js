@@ -19,6 +19,13 @@ export const storeItems = [
         description: 'Unlocks a special golden cannon skin.',
         purchased: false
     },
+    {
+        key: 'unlockJump',
+        name: 'Unlock Jump',
+        cost: 200,
+        description: 'Unlocks the ability to jump! Press SPACE to jump.',
+        purchased: false
+    },
     // Add more items as needed
 ];
 

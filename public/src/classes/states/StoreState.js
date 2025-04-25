@@ -64,6 +64,10 @@ export class StoreState {
                         gameSettings.upgradesUnlocked = true;
                         if (this.saveManager) this.saveManager.save(gameSettings);
                     }
+                    if (item.key === 'unlockJump') {
+                        if (this.eventBus) this.eventBus.safeEmit('notification', 'Jump unlocked! Press SPACE to jump.');
+                        console.log('Jump unlocked! Press SPACE to jump.');
+                    }
                     if (this.saveManager) this.saveManager.save(gameSettings);
                     if (this.eventBus) this.eventBus.safeEmit('coinsChanged', gameSettings.coins);
                 }

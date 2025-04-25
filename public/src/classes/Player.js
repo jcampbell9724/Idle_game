@@ -18,6 +18,11 @@ export class Player {
      * @param {EventBus} eventBus - the event bus for communication
      */
     constructor(x, y, w, h, sprite, p, eventBus, spriteLeft, spriteRight) {
+        // ...existing code...
+        this.vy = 0;
+        this.isOnGround = true;
+        this.jumpVelocity = -12; // Upward jump speed
+    
         this.x = x;
         this.y = y;
         this.w = w;
@@ -51,6 +56,30 @@ export class Player {
      * Updates the player's state - called every frame
      */
     update() {
+        // --- JUMP/GRAVITY ---
+        // Gravity only if jump is unlocked
+        if (window.storeSystem && window.storeSystem.isPurchased && window.storeSystem.isPurchased('unlockJump')) {
+            // Apply gravity
+            this.vy += 0.7; // gravity strength
+            this.y += this.vy;
+            // Check ground collision
+            const groundY = gameSettings.groundY || (this.p.height - this.h / 2);
+            if (this.y + this.h / 2 >= groundY) {
+                this.y = groundY - this.h / 2;
+                this.vy = 0;
+                this.isOnGround = true;
+            } else {
+                this.isOnGround = false;
+            }
+        }
+        // --- END JUMP/GRAVITY ---
+        this.handleInput();
+        if (this.isMoving) {
+            this.animationFrame = (this.animationFrame + 1) % (this.animationDelay * 2);
+        } else {
+            this.animationFrame = 0;
+        }
+    
         // Handle keyboard input
         this.handleInput();
         
@@ -66,6 +95,14 @@ export class Player {
         let move = 0;
         if (this.p.keyIsDown(this.p.LEFT_ARROW) || this.p.keyIsDown(65)) move -= 1;  // 'A'
         if (this.p.keyIsDown(this.p.RIGHT_ARROW) || this.p.keyIsDown(68)) move += 1; // 'D'
+        // --- JUMP INPUT ---
+        if (window.storeSystem && window.storeSystem.isPurchased && window.storeSystem.isPurchased('unlockJump')) {
+            if ((this.p.keyIsDown(32) || this.p.keyIsDown(this.p.UP_ARROW)) && this.isOnGround) { // SPACE or UP
+                this.vy = this.jumpVelocity;
+                this.isOnGround = false;
+            }
+        }
+        // --- END JUMP INPUT ---
         
         // Update movement state
         if (move !== 0) {
