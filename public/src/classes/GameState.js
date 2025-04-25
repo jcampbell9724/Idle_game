@@ -4,6 +4,7 @@ import { MenuState } from './states/MenuState.js';
 import { gameSettings } from '../gameSettings.js';
 import { SettingsState } from './states/SettingsState.js';
 import { StoreState } from './states/StoreState.js';
+import { ChangelogState } from './states/ChangelogState.js';
 
 export class GameState {
     constructor(p, eventBus, saveManager, assetManager, playerSprite, playerLeftSprite, playerRightSprite) {
@@ -17,7 +18,8 @@ export class GameState {
             upgrade: new UpgradeState(p, eventBus, saveManager, assetManager, gameSettings.upgradeSystem),
             menu: new MenuState(p, eventBus, saveManager, assetManager),
             settings: new SettingsState(p, eventBus, saveManager, assetManager, gameSettings.soundManager),
-            store: new StoreState(p, eventBus, saveManager, assetManager)
+            store: new StoreState(p, eventBus, saveManager, assetManager),
+            changelog: new ChangelogState(p, eventBus, saveManager, assetManager)
         };
         
         // Listen for state change events
