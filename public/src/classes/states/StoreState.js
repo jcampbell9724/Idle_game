@@ -35,39 +35,37 @@ export class StoreState {
         // Handle buy button clicks
         const items = storeSystem.getItems();
         
-        // IMPORTANT: These constants must match those in StoreScreen.js
-        const boxW = 440, boxH = 70;
-        const boxSpacing = 18; // vertical space between item boxes
-        const startX = this.p.width / 2 - boxW / 2;
-        let startY = this.p.height / 2 - (items.length * (boxH + boxSpacing)) / 2;
-        
-        // Button dimensions (must match StoreScreen.js)
-        const buttonW = 64, buttonH = 36;
-        const buttonRightPadding = 48;
-        
+        // Match grid layout from StoreScreen.js
+        const cols = 3;
+        const gap = 16;
+        const panelW = this.p.width * 0.6;
+        const panelH = this.p.height * 0.6;
+        const panelX = (this.p.width - panelW) / 2;
+        const panelY = (this.p.height - panelH) / 2;
+        const btnW = (panelW - gap * (cols + 1)) / cols;
+        const btnH = 80;
+        const startY = panelY + 100;
+
         items.forEach((item, idx) => {
             if (item.purchased) return;
-            
-            // Calculate button position exactly as in StoreScreen.js
-            const itemY = startY + idx * (boxH + boxSpacing);
-            const btnX = startX + boxW - buttonRightPadding - buttonW;
-            const btnY = itemY + (boxH - buttonH) / 2;
-            
-            console.log(`Button ${idx}: (${btnX},${btnY}) to (${btnX+buttonW},${btnY+buttonH}). Click at (${x},${y})`);
-            
-            // Check if click is within button
+            const col = idx % cols;
+            const row = Math.floor(idx / cols);
+            const bx = panelX + gap + col * (btnW + gap);
+            const by = startY + row * (btnH + gap);
+            // Check if click is inside the card/button area
             if (
-                x >= btnX && x <= btnX + buttonW &&
-                y >= btnY && y <= btnY + buttonH
+                x >= bx && x <= bx + btnW &&
+                y >= by && y <= by + btnH
             ) {
-                console.log(`Clicked buy button for ${item.name}`);
                 // Try to buy
                 if (storeSystem.tryBuy(item.key, gameSettings.coins)) {
                     gameSettings.updateCoins(-item.cost);
-                    console.log(`Purchased ${item.name} for ${item.cost} coins`);
+                    if (item.key === 'unlockUpgrades') {
+                        gameSettings.upgradesUnlocked = true;
+                        if (this.saveManager) this.saveManager.save(gameSettings);
+                    }
+                    if (this.saveManager) this.saveManager.save(gameSettings);
                     if (this.eventBus) this.eventBus.safeEmit('coinsChanged', gameSettings.coins);
-                } else {
-                    console.log(`Failed to purchase ${item.name} - insufficient funds or already purchased`);
                 }
             }
         });

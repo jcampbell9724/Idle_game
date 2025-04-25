@@ -11,6 +11,7 @@ import {
  * currentCannonInterval is in seconds (we'll multiply by p.frameRate() when shooting).
  */
 export const gameSettings = {
+    upgradesUnlocked: false,
     currentBlockValue: blockBaseValue,
     currentCannonInterval: baseShootIntervalSeconds,   // seconds between shots
     currentBlockDespawnTime: baseBlockDespawnTime,     // seconds until blocks despawn
@@ -80,8 +81,11 @@ export const gameSettings = {
 
     // Add methods for serialization
     toJSON() {
+        // Add upgradesUnlocked to save
+
         return {
             currentBlockValue: this.currentBlockValue,
+            upgradesUnlocked: this.upgradesUnlocked,
             currentCannonInterval: this.currentCannonInterval,
             currentBlockDespawnTime: this.currentBlockDespawnTime,
             currentPlayerSpeed: this.currentPlayerSpeed,
@@ -97,6 +101,12 @@ export const gameSettings = {
     },
 
     fromJSON(data) {
+        // Restore upgradesUnlocked
+        if (typeof data.upgradesUnlocked === 'boolean') {
+            this.upgradesUnlocked = data.upgradesUnlocked;
+        } else {
+            this.upgradesUnlocked = false;
+        }
         if (!data) return;
         
         try {

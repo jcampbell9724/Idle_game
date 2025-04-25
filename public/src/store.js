@@ -6,10 +6,10 @@
  */
 export const storeItems = [
     {
-        key: 'doubleCoins',
-        name: 'Double Coins',
+        key: 'unlockUpgrades',
+        name: 'Unlock Upgrades',
         cost: 100,
-        description: 'Doubles all coins earned from now on.',
+        description: 'Unlocks the Upgrade Shop.',
         purchased: false
     },
     {
@@ -19,13 +19,6 @@ export const storeItems = [
         description: 'Unlocks a special golden cannon skin.',
         purchased: false
     },
-    {
-        key: 'extraLife',
-        name: 'Extra Life',
-        cost: 150,
-        description: 'Adds an extra life to your player.',
-        purchased: false
-    }
     // Add more items as needed
 ];
 

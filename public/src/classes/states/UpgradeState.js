@@ -51,6 +51,33 @@ export class UpgradeState extends BaseState {
     }
 
     onRender() {
+        if (!gameSettings.upgradesUnlocked) {
+            // Draw locked panel
+            const p = this.p;
+            const panel = {
+                width: p.width * 0.6,
+                height: p.height * 0.3,
+                x: (p.width - p.width * 0.6) / 2,
+                y: (p.height - p.height * 0.3) / 2,
+                centerX: p.width / 2,
+                centerY: p.height / 2
+            };
+            p.push();
+            p.fill('#222');
+            p.stroke('#fff');
+            p.strokeWeight(2);
+            p.rect(panel.x, panel.y, panel.width, panel.height, 20);
+            p.noStroke();
+            p.fill('#fff');
+            p.textAlign(p.CENTER, p.CENTER);
+            p.textSize(28);
+            p.text('Upgrade Shop Locked', panel.centerX, panel.y + 50);
+            p.textSize(18);
+            p.fill('#ccc');
+            p.text('Unlock it in the Store!', panel.centerX, panel.y + 95);
+            p.pop();
+            return;
+        }
         drawUpgradeScreen(this.p);
     }
 
