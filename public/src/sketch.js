@@ -14,11 +14,95 @@ import { EventBus } from './events/EventBus.js';
 import { SaveManager } from './save/SaveManager.js';
 import { AssetManager } from './assets/AssetManager.js';
 import { SoundManager } from './audio/SoundManager.js';
+// --- Changelog Modal Helper ---
+function showChangelogModal() {
+    // If modal already exists, just show it
+    let modal = document.getElementById('changelog-modal');
+    if (modal) {
+        modal.style.display = 'block';
+        return;
+    }
+    // Modal container
+    modal = document.createElement('div');
+    modal.id = 'changelog-modal';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100vw';
+    modal.style.height = '100vh';
+    modal.style.background = 'rgba(0,0,0,0.7)';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.zIndex = '2000';
+    // Modal content
+    const content = document.createElement('div');
+    content.style.background = '#fff';
+    content.style.padding = '32px 24px 16px 24px';
+    content.style.borderRadius = '12px';
+    content.style.maxWidth = '90vw';
+    content.style.maxHeight = '80vh';
+    content.style.overflowY = 'auto';
+    content.style.boxShadow = '0 8px 32px rgba(0,0,0,0.4)';
+    content.style.fontFamily = "'Pixelify Sans', sans-serif";
+    content.style.position = 'relative';
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '×';
+    closeBtn.style.position = 'absolute';
+    closeBtn.style.top = '8px';
+    closeBtn.style.right = '12px';
+    closeBtn.style.fontSize = '1.5rem';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.border = 'none';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.color = '#333';
+    closeBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    content.appendChild(closeBtn);
+    // Title
+    const title = document.createElement('h2');
+    title.textContent = 'Changelog';
+    title.style.marginTop = '0';
+    title.style.fontSize = '2rem';
+    title.style.textAlign = 'center';
+    content.appendChild(title);
+    // Changelog body
+    const body = document.createElement('pre');
+    body.textContent = 'Loading...';
+    body.style.fontSize = '1.1rem';
+    body.style.background = '#faf7f6';
+    body.style.padding = '16px';
+    body.style.borderRadius = '8px';
+    body.style.whiteSpace = 'pre-wrap';
+    body.style.marginTop = '12px';
+    content.appendChild(body);
+    // Fetch changelog
+    fetch('changelog.txt')
+        .then(r => r.text())
+        .then(txt => { body.textContent = txt; })
+        .catch(() => { body.textContent = 'Failed to load changelog.'; });
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+}
+
 
 // expose for your cheat button
 window.gameSettings = gameSettings;
 
 const sketch = (p) => {
+    // --- Helper to show/hide changelog button depending on menu state ---
+    function updateChangelogBtnVisibility(isMenu) {
+        const btn = document.getElementById('changelog-btn');
+        if (btn) btn.style.display = isMenu ? 'block' : 'none';
+        // Also hide modal if not in menu
+        if (!isMenu) {
+            const modal = document.getElementById('changelog-modal');
+            if (modal) modal.style.display = 'none';
+        }
+    }
+
     let player, cannon, blocks = [];
     let gameStateManager;
     let eventBus;
@@ -44,6 +128,15 @@ const sketch = (p) => {
     };
 
     p.setup = () => { // Remove async
+        // Listen for state changes to show/hide changelog button
+        window.addEventListener('DOMContentLoaded', () => updateChangelogBtnVisibility(true));
+        if (!window._changelogEventBusHooked) {
+            window._changelogEventBusHooked = true;
+            window.addEventListener('gameStateChanged', (e) => {
+                updateChangelogBtnVisibility(e.detail === 'menu');
+            });
+        }
+
         p.pixelDensity(window.devicePixelRatio || 1);  // avoid retina/high‑DPI blur
         p.noSmooth();       // disable image interpolation
 
@@ -81,6 +174,14 @@ const sketch = (p) => {
         gameSettings.soundManager = soundManager;
         gameSettings.assetManager = assetManager;
         gameSettings.soundEnabled = true;
+
+        // Listen for state changes and dispatch event for changelog button
+        if (eventBus && !eventBus._changelogHooked) {
+            eventBus._changelogHooked = true;
+            eventBus.on('changeState', (state) => {
+                window.dispatchEvent(new CustomEvent('gameStateChanged', { detail: state }));
+            });
+        }
         
         console.log('All managers connected to EventBus');
         
@@ -328,6 +429,22 @@ const sketch = (p) => {
         muteIndicator.addEventListener('click', toggleMute);
         document.body.appendChild(muteIndicator);
         
+        // Add changelog button (top-right corner)
+        const changelogBtn = document.createElement('button');
+        changelogBtn.id = 'changelog-btn';
+        changelogBtn.textContent = 'Changelog';
+        changelogBtn.className = 'game-button';
+        changelogBtn.style.position = 'fixed';
+        changelogBtn.style.top = '10px';
+        changelogBtn.style.right = '10px';
+        changelogBtn.style.zIndex = '1100';
+        changelogBtn.style.background = '#f7b731';
+        changelogBtn.style.color = '#222';
+        changelogBtn.style.fontWeight = 'bold';
+        changelogBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.09)';
+        changelogBtn.addEventListener('click', showChangelogModal);
+        document.body.appendChild(changelogBtn);
+
         // Add key hints
         const keyHint = document.createElement('div');
         keyHint.className = 'key-hint';

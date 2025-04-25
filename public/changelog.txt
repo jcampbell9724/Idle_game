@@ -1,0 +1,15 @@
+/*
+Changelog for Idle Farm Cannon Tycoon
+-------------------------------------
+Alpha 1.1 - 4/25/2025
+- Added changelog button to main menu.
+- Added sound mute toggle hotkey (M).
+- Added various sound effects
+- Added mute indicator UI.
+- Added Jump!
+- Added one time purchase store.
+- Fixed upgrade system event bus and costGrowth persistence bugs.
+- Improved event-driven architecture reliability.
+
+Alpha 1.0 - 4/22/2025
+- Initial game release
