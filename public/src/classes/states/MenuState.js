@@ -5,7 +5,7 @@ export class MenuState extends BaseState {
         super(p, eventBus, saveManager, assetManager);
     }
 
-    render() {
+    onRender() {
         this.p.background('#ffe7de');
         this.p.fill(0);
         this.p.textSize(32);

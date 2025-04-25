@@ -1,6 +1,6 @@
 import { BaseState } from './BaseState.js';
 import { drawUpgradeScreen } from '../../ui/UpgradeScreen.js';
-import { upgrades, tryBuy } from '../../upgrades.js';
+import { upgradeSystem } from '../../upgrades.js';
 import { gameSettings } from '../../gameSettings.js';
 
 export class UpgradeState extends BaseState {
@@ -9,25 +9,30 @@ export class UpgradeState extends BaseState {
         this.upgradeHitboxes = [];
     }
 
-    update() {
+    onUpdate() {
         // Update hitboxes based on current layout
         this.updateHitboxes();
     }
 
     updateHitboxes() {
         this.upgradeHitboxes = [];
+        
+        // Use the same panel dimensions as in the UI
         const panelW = this.p.width * 0.6;
         const panelH = this.p.height * 0.6;
         const panelX = (this.p.width - panelW) / 2;
         const panelY = (this.p.height - panelH) / 2;
 
-        // Grid setup
+        // Grid setup - must match UpgradeScreen.js
         const cols = 3;
         const gap = 16;
         const btnW = (panelW - gap * (cols + 1)) / cols;
         const btnH = 80; // Match the height in UpgradeScreen
         const startY = panelY + 100; // Match the startY in UpgradeScreen
 
+        // Get upgrades from upgradeSystem
+        const upgrades = upgradeSystem.getAllUpgrades();
+        
         // Create hitboxes for each upgrade
         upgrades.forEach((upg, idx) => {
             const col = idx % cols;
@@ -45,7 +50,7 @@ export class UpgradeState extends BaseState {
         });
     }
 
-    render() {
+    onRender() {
         drawUpgradeScreen(this.p);
     }
 
@@ -56,7 +61,7 @@ export class UpgradeState extends BaseState {
                 y >= hitbox.y && y <= hitbox.y + hitbox.h) {
                 // Check if player can afford the upgrade
                 if (gameSettings.coins >= hitbox.upgrade.cost) {
-                    if (tryBuy(hitbox.upgrade)) {
+                    if (upgradeSystem.tryBuy(hitbox.upgrade.key)) {
                         // Save game after purchase
                         if (this.saveManager) {
                             this.saveManager.save(gameSettings);

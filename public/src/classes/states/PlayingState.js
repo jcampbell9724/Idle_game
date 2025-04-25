@@ -6,7 +6,7 @@ import { PLAYER_WIDTH, PLAYER_HEIGHT, CANNON_X_OFFSET, GROUND_OFFSET } from '../
 import { gameSettings } from '../../gameSettings.js';
 
 export class PlayingState extends BaseState {
-    constructor(p, eventBus, saveManager, assetManager) {
+    constructor(p, eventBus, saveManager, assetManager, playerSprite, playerLeftSprite, playerRightSprite) {
         super(p, eventBus, saveManager, assetManager);
 
         // 1) compute the ground Y
@@ -17,7 +17,6 @@ export class PlayingState extends BaseState {
         const playerCenterY = groundY - PLAYER_HEIGHT / 2;
 
         // 3) create the player at that Y
-        const playerSprite = this.assetManager.getAsset('player');
         this.player = new Player(
             p.width / 2,
             playerCenterY,
@@ -25,7 +24,9 @@ export class PlayingState extends BaseState {
             PLAYER_HEIGHT,
             playerSprite,
             p,
-            eventBus
+            eventBus,
+            playerLeftSprite,
+            playerRightSprite
         );
 
         // 4) instantiate your cannon and block array
@@ -49,8 +50,18 @@ export class PlayingState extends BaseState {
         }
     }
 
-    update() {
-        this.player.handleInput();
+    onEnter() {
+        // Any specific setup when entering the playing state
+        // For example, resume music, reset timers, etc.
+    }
+    
+    onExit() {
+        // Any specific cleanup when leaving the playing state
+        // For example, pause certain animations, save state, etc.
+    }
+    
+    onUpdate() {
+        this.player.update(); // Use update instead of handleInput to handle animation
         this.cannon.tryShoot(this.blocks);
 
         for (let i = this.blocks.length - 1; i >= 0; i--) {
@@ -75,7 +86,7 @@ export class PlayingState extends BaseState {
         }
     }
 
-    render() {
+    onRender() {
         const bg = this.assetManager.getAsset('background');
         if (bg) {
             this.p.image(bg, 0, 0, this.p.width, this.p.height);

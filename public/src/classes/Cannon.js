@@ -1,6 +1,7 @@
 // src/classes/Cannon.js
 import { Block } from './Block.js';
 import { gameSettings } from '../gameSettings.js';
+import { Physics } from '../physics/PhysicsHelper.js';
 
 export class Cannon {
     /**
@@ -81,12 +82,10 @@ export class Cannon {
             // Check max blocks limit before creating a new block
             if (blocks.length >= gameSettings.currentMaxBlocks) {
                 // Emit max blocks reached event
-                if (this.eventBus) {
-                    this.eventBus.emit('maxBlocksReached', {
-                        current: blocks.length,
-                        max: gameSettings.currentMaxBlocks
-                    });
-                }
+                this.eventBus?.safeEmit('maxBlocksReached', {
+                    current: blocks.length,
+                    max: gameSettings.currentMaxBlocks
+                });
                 return; // Don't spawn a new block
             }
             
@@ -109,15 +108,18 @@ export class Cannon {
             blocks.push(newBlock);
             this.lastShotFrame = this.p.frameCount;
             
-            // Emit event
-            if (this.eventBus) {
-                this.eventBus.emit('cannonFired', { 
-                    x: spawnX, 
-                    y: spawnY,
-                    angle: this.rotationAngle,
-                    power: this.currentPower
-                });
+            // Play cannon sound
+            if (gameSettings.soundEnabled && gameSettings.soundManager) {
+                gameSettings.soundManager.playSound('cannonSound');
             }
+            
+            // Emit event
+            this.eventBus?.safeEmit('cannonFired', { 
+                x: spawnX, 
+                y: spawnY,
+                angle: this.rotationAngle,
+                power: this.currentPower
+            });
         }
     }
 
@@ -130,46 +132,23 @@ export class Cannon {
         this.p.push();
         this.p.noFill();
         
-        let x = this.x;
-        let y = this.y;
-        let vx = Math.cos(this.rotationAngle) * this.currentPower;
-        let vy = Math.sin(this.rotationAngle) * this.currentPower;
+        // Calculate trajectory using Physics helper
+        const vx = Math.cos(this.rotationAngle) * this.currentPower;
+        const vy = Math.sin(this.rotationAngle) * this.currentPower;
         
-        // Calculate total trajectory points
-        const totalPoints = 100;
-        const visiblePoints = Math.floor(totalPoints * 0.25); // Only show 25% of the path
+        // Get trajectory points
+        const trajectoryPoints = Physics.calculateTrajectory(
+            this.x,
+            this.y,
+            vx,
+            vy,
+            window.gravity || { x: 0, y: 0.15 },
+            100, // total points
+            0.75  // gravity scale
+        );
         
-        // Calculate trajectory points
-        const trajectoryPoints = [];
-        
-        for (let i = 0; i < totalPoints; i++) {
-            x += vx;
-            y += vy;
-            
-            // Apply gravity (use window.gravity if available) - reduced gravity effect
-            if (window.gravity) {
-                vy += window.gravity.y * 0.75; // 75% of original gravity
-            } else {
-                vy += 0.15; // Reduced from 0.2
-            }
-            
-            // Bounce off walls
-            if (x < 0 || x > this.p.width) {
-                vx *= -0.6;
-                x = x < 0 ? 0 : this.p.width;
-            }
-            
-            // Stop at ground
-            const groundY = gameSettings.groundY || (this.p.height - 20);
-            if (y > groundY) {
-                trajectoryPoints.push({x: x, y: groundY});
-                break;
-            }
-            
-            trajectoryPoints.push({x: x, y: y});
-        }
-        
-        // Only draw the visible portion of the trajectory
+        // Only draw a portion of the trajectory (25%)
+        const visiblePoints = Math.floor(trajectoryPoints.length * 0.25);
         const visibleTrajectory = trajectoryPoints.slice(0, visiblePoints);
         
         if (visibleTrajectory.length > 0) {
@@ -178,12 +157,11 @@ export class Cannon {
             // Start at cannon position
             this.p.vertex(this.x, this.y);
             
-            // Draw trajectory with fading opacity - using pure white (255, 255, 255)
+            // Draw trajectory with fading opacity - using pure white
             for (let i = 0; i < visibleTrajectory.length; i++) {
                 const point = visibleTrajectory[i];
                 // Opacity goes from 255 to 50
                 const alpha = this.p.map(i, 0, visibleTrajectory.length - 1, 255, 50);
-                // Using pure white color (255, 255, 255)
                 this.p.stroke(255, 255, 255, alpha);
                 this.p.vertex(point.x, point.y);
             }
@@ -236,9 +214,7 @@ export class Cannon {
         this.targetX = x - 100;
         this.targetY = y - 100;
         
-        // Emit position update event if eventBus exists
-        if (this.eventBus) {
-            this.eventBus.emit('cannonMoved', { x: this.x, y: this.y });
-        }
+        // Emit position update event using safeEmit
+        this.eventBus?.safeEmit('cannonMoved', { x: this.x, y: this.y });
     }
 }

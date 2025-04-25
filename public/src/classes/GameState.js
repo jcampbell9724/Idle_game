@@ -3,19 +3,21 @@ import { UpgradeState } from './states/UpgradeState.js';
 import { MenuState } from './states/MenuState.js';
 import { gameSettings } from '../gameSettings.js';
 import { SettingsState } from './states/SettingsState.js';
+import { StoreState } from './states/StoreState.js';
 
 export class GameState {
-    constructor(p, eventBus, saveManager, assetManager) {
+    constructor(p, eventBus, saveManager, assetManager, playerSprite, playerLeftSprite, playerRightSprite) {
         this.p = p;
         this.eventBus = eventBus;
         this.saveManager = saveManager;
         this.assetManager = assetManager;
         
         this.states = {
-            playing: new PlayingState(p, eventBus, saveManager, assetManager),
-            upgrade: new UpgradeState(p, eventBus, saveManager, assetManager),
+            playing: new PlayingState(p, eventBus, saveManager, assetManager, playerSprite, playerLeftSprite, playerRightSprite),
+            upgrade: new UpgradeState(p, eventBus, saveManager, assetManager, gameSettings.upgradeSystem),
             menu: new MenuState(p, eventBus, saveManager, assetManager),
-            settings: new SettingsState(p, eventBus, saveManager, assetManager)
+            settings: new SettingsState(p, eventBus, saveManager, assetManager, gameSettings.soundManager),
+            store: new StoreState(p, eventBus, saveManager, assetManager)
         };
         
         // Listen for state change events
@@ -26,6 +28,7 @@ export class GameState {
         }
         
         this.currentState = 'menu';
+        // Use the enter method which will call onEnter()
         this.states[this.currentState].enter();
     }
 

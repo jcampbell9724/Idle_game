@@ -1,4 +1,4 @@
-﻿// src/upgrades.js
+// src/upgrades.js
 
 import {
     blockBaseValue,
@@ -12,7 +12,8 @@ import { gameSettings, initUpgrades as resetGameSettings } from './gameSettings.
 const INITIAL_UPGRADE_COST = 1;
 const upgradeCostGrowth = c => Math.ceil(c * 1.25);
 
-export const upgrades = [
+// Move the upgrade definitions to a separate array
+const upgradeDefinitions = [
     {
         key: 'blockValue',
         name: 'Block Value',
@@ -102,11 +103,150 @@ export const upgrades = [
     }
 ];
 
-// Make upgrades available globally
-window.upgrades = upgrades;
-window.initUpgrades = initUpgrades;
+/**
+ * Central upgrade management system that handles all upgrade operations
+ */
+export class UpgradeSystem {
+    /**
+     * @param {EventBus} eventBus - Event bus for sending notifications
+     */
+    constructor(eventBus) {
+        this.eventBus = eventBus;
+        this.upgrades = new Map();
+        this._initializeFromDefinitions(upgradeDefinitions);
+        
+        // Listen for upgrade events to keep in sync
+        if (this.eventBus) {
+            this.eventBus.on('upgradePurchased', (upgrade) => {
+                this._syncUpgradeWithGameSettings(upgrade.key);
+            });
+        }
+    }
+    
+    /**
+     * Initialize upgrades from definitions
+     * @private
+     */
+    _initializeFromDefinitions(definitions) {
+        definitions.forEach(def => {
+            // Create a deep copy of the definition to avoid reference issues
+            const upgrade = JSON.parse(JSON.stringify(def));
+            
+            // Add any non-serializable properties (like functions)
+            upgrade.getValue = def.getValue;
+            upgrade.formatValue = def.formatValue;
+            upgrade.applyUpdate = def.applyUpdate;
+            upgrade.costGrowth = def.costGrowth;
+            
+            this.upgrades.set(upgrade.key, upgrade);
+        });
+    }
+    
+    /**
+     * Sync an upgrade with game settings
+     * @private
+     */
+    _syncUpgradeWithGameSettings(upgradeKey) {
+        const upgrade = this.upgrades.get(upgradeKey);
+        if (!upgrade) return;
+        
+        if (typeof upgrade.applyUpdate === 'function') {
+            upgrade.applyUpdate(upgrade);
+        } else if (upgrade.targetVariable) {
+            gameSettings[upgrade.targetVariable] = upgrade.getValue(upgrade.level);
+        }
+    }
+    
+    /**
+     * Get all upgrades as an array
+     * @returns {Array} Array of upgrade objects
+     */
+    getAllUpgrades() {
+        return Array.from(this.upgrades.values());
+    }
+    
+    /**
+     * Get a specific upgrade by key
+     * @param {string} key - Upgrade key
+     * @returns {Object|undefined} The upgrade object or undefined
+     */
+    getUpgrade(key) {
+        return this.upgrades.get(key);
+    }
+    
+    /**
+     * Attempt to purchase an upgrade
+     * @param {string} upgradeKey - Key of the upgrade to purchase
+     * @returns {boolean} Whether the purchase was successful
+     */
+    tryBuy(upgradeKey) {
+        const upgrade = this.upgrades.get(upgradeKey);
+        if (!upgrade) return false;
+        
+        if (gameSettings.coins < upgrade.cost) return false;
+        
+        // Deduct cost and update level
+        gameSettings.updateCoins(-upgrade.cost, true); // Silent update, we'll emit later
+        upgrade.level += 1;
+        upgrade.cost = upgrade.costGrowth(upgrade.cost);
+        
+        // Apply the upgrade effect
+        this._syncUpgradeWithGameSettings(upgradeKey);
+        
+        // Emit events
+        if (this.eventBus) {
+            this.eventBus.safeEmit('upgradePurchased', { ...upgrade });
+            this.eventBus.safeEmit('coinsChanged', gameSettings.coins);
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Reset all upgrades to their initial values
+     */
+    resetAllUpgrades() {
+        this._initializeFromDefinitions(upgradeDefinitions);
+        
+        // Apply all upgrades to game settings
+        this.upgrades.forEach((upgrade, key) => {
+            upgrade.level = 0;
+            upgrade.cost = INITIAL_UPGRADE_COST;
+            this._syncUpgradeWithGameSettings(key);
+        });
+        
+        // Reset game settings
+        gameSettings.coins = 0;
+        gameSettings.score = 0;
+        
+        // Notify about the reset
+        if (this.eventBus) {
+            this.eventBus.emit('upgradesReset');
+            this.eventBus.emit('coinsChanged', gameSettings.coins);
+        }
+    }
+}
 
+// Create a singleton instance
+export const upgradeSystem = new UpgradeSystem();
+
+// Export an array of upgrades for backward compatibility
+export const upgrades = upgradeSystem.getAllUpgrades();
+
+// Export these functions for backward compatibility but mark as deprecated
+/**
+ * @deprecated Use upgradeSystem.tryBuy() instead
+ */
+export function tryBuy(upg) {
+    console.warn('tryBuy() is deprecated. Use upgradeSystem.tryBuy() instead');
+    return upgradeSystem.tryBuy(upg.key);
+}
+
+/**
+ * @deprecated Use upgradeSystem._syncUpgradeWithGameSettings() instead
+ */
 export function updateGlobalVariable(upg) {
+    console.warn('updateGlobalVariable() is deprecated. Use upgradeSystem directly instead.');
     if (typeof upg.applyUpdate === 'function') {
         upg.applyUpdate(upg);
     } else if (upg.targetVariable) {
@@ -116,83 +256,15 @@ export function updateGlobalVariable(upg) {
     }
 }
 
-export function tryBuy(upg) {
-    if (gameSettings.coins < upg.cost) return false;
-    
-    gameSettings.coins -= upg.cost;
-    upg.level += 1;
-    upg.cost = upg.costGrowth(upg.cost);
-    updateGlobalVariable(upg);
-    
-    // Emit event if eventBus exists
-    if (gameSettings.eventBus) {
-        gameSettings.eventBus.emit('upgradePurchased', { ...upg });
-        gameSettings.eventBus.emit('coinsChanged', gameSettings.coins);
-    }
-    
-    return true;
-}
-
+/**
+ * @deprecated Use upgradeSystem.resetAllUpgrades() instead
+ */
 export function initUpgrades() {
-    resetGameSettings();
-    upgrades.forEach(upg => {
-        upg.level = 0;
-        upg.cost = INITIAL_UPGRADE_COST;
-        updateGlobalVariable(upg);
-    });
+    console.warn('initUpgrades() is deprecated. Use upgradeSystem.resetAllUpgrades() instead');
+    upgradeSystem.resetAllUpgrades();
 }
 
-export class UpgradeSystem {
-    constructor(eventBus) {
-        this.eventBus = eventBus;
-        this.upgrades = new Map();
-        this.loadUpgrades();
-        
-        // Listen for upgrade events to keep in sync
-        if (this.eventBus) {
-            this.eventBus.on('upgradePurchased', (upgrade) => {
-                this.syncWithGlobal();
-            });
-        }
-    }
-
-    loadUpgrades() {
-        // Use references to the original upgrades to maintain sync
-        upgrades.forEach(upg => {
-            this.upgrades.set(upg.key, upg);
-        });
-    }
-    
-    syncWithGlobal() {
-        // Update local map with global upgrades
-        upgrades.forEach(upg => {
-            this.upgrades.set(upg.key, upg);
-        });
-    }
-
-    tryBuy(upgradeKey) {
-        // Find the upgrade in the global array instead of local map
-        const upgradeIndex = upgrades.findIndex(u => u.key === upgradeKey);
-        
-        if (upgradeIndex === -1) return false;
-        
-        const upgrade = upgrades[upgradeIndex];
-        
-        if (tryBuy(upgrade)) {
-            // Update our local map after purchase
-            this.syncWithGlobal();
-            return true;
-        }
-        return false;
-    }
-    
-    // Helper method to get all upgrades as an array
-    getAllUpgrades() {
-        return Array.from(this.upgrades.values());
-    }
-    
-    // Get a specific upgrade by key
-    getUpgrade(key) {
-        return this.upgrades.get(key);
-    }
-}
+// Make upgraded system and deprecated functions available globally for transition
+window.upgradeSystem = upgradeSystem;
+window.upgrades = upgrades;
+window.initUpgrades = initUpgrades;

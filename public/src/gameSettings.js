@@ -27,6 +27,22 @@ export const gameSettings = {
 
     eventBus: null,
 
+    /**
+     * Updates the coin amount and emits an event if needed
+     * @param {number} amount - Amount to add (or subtract if negative)
+     * @param {boolean} silent - Whether to skip event emission
+     * @returns {number} - The new coin amount
+     */
+    updateCoins(amount, silent = false) {
+        this.coins += amount;
+        
+        if (!silent && this.eventBus) {
+            this.eventBus.safeEmit('coinsChanged', this.coins);
+        }
+        
+        return this.coins;
+    },
+
     // Toggle mute state for all sounds
     toggleMute() {
         if (this.isMuted) {
@@ -52,14 +68,12 @@ export const gameSettings = {
             this.coinSfx.setVolume(this.sfxVolume);
         }
 
-        // Emit volume changed event if eventBus exists
-        if (this.eventBus) {
-            this.eventBus.emit('volumeChanged', {
-                music: this.musicVolume,
-                sfx: this.sfxVolume,
-                isMuted: this.isMuted
-            });
-        }
+        // Emit volume changed event using safeEmit
+        this.eventBus?.safeEmit('volumeChanged', {
+            music: this.musicVolume,
+            sfx: this.sfxVolume,
+            isMuted: this.isMuted
+        });
 
         return this.isMuted; // Return current mute state
     },

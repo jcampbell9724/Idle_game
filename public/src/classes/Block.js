@@ -2,6 +2,7 @@
 import { BLOCK_SIZE } from '../config.js';
 import { gameSettings } from '../gameSettings.js';
 import { constrain } from '../utils.js';
+import { Physics } from '../physics/PhysicsHelper.js';
 
 /**
  * Represents a falling block fired by the cannon.
@@ -47,9 +48,8 @@ export class Block {
 
         // Apply reduced gravity for longer trajectories
         if (window.gravity) {
-            // Apply 75% of the original gravity for longer flight
-            const reducedGravity = this.p.createVector(window.gravity.x, window.gravity.y * 0.75);
-            this.vel.add(reducedGravity);
+            // Use Physics helper to apply gravity with reduced effect (75%)
+            Physics.applyGravity(this.vel, window.gravity, 0.75);
         } else {
             // Reduced default gravity
             this.vel.add(0, 0.15);
@@ -59,27 +59,16 @@ export class Block {
         this.pos.add(this.vel);
 
         if (!this.hasBounced) {
-            let bounced = false;
-
-            // ceiling
-            if (this.pos.y < this.size / 2) {
-                this.pos.y = this.size / 2;
-                this.vel.y *= -0.6;
-                bounced = true;
-            }
-            // left wall
-            if (this.pos.x < this.size / 2) {
-                this.pos.x = this.size / 2;
-                this.vel.x *= -0.6;
-                bounced = true;
-            }
-            // right wall
-            if (this.pos.x > this.p.width - this.size / 2) {
-                this.pos.x = this.p.width - this.size / 2;
-                this.vel.x *= -0.6;
-                bounced = true;
-            }
-
+            // Use Physics helper to check for and apply wall bounces
+            const bounced = Physics.bounce(
+                this.pos, 
+                this.vel, 
+                this.size, 
+                this.p.width, 
+                this.p.height, 
+                0.6 // bounce multiplier
+            );
+            
             if (bounced) this.hasBounced = true;
         }
 
@@ -98,8 +87,8 @@ export class Block {
 
 
         // Emit events for block movement/despawn
-        if (this.isDespawned() && this.eventBus) {
-            this.eventBus.emit('blockDespawned', this);
+        if (this.isDespawned()) {
+            this.eventBus?.safeEmit('blockDespawned', this);
         }
     }
 
@@ -161,29 +150,19 @@ export class Block {
      * @param {{ x:number, y:number, w:number, h:number }} pBounds
      */
     collidesWith(pBounds) {
-        return (
-            this.pos.x + this.size / 2 > pBounds.x - pBounds.w / 2 &&
-            this.pos.x - this.size / 2 < pBounds.x + pBounds.w / 2 &&
-            this.pos.y + this.size / 2 > pBounds.y - pBounds.h / 2 &&
-            this.pos.y - this.size / 2 < pBounds.y + pBounds.h / 2
+        return Physics.checkCollision(
+            { x: this.pos.x, y: this.pos.y, size: this.size },
+            pBounds
         );
     }
 
     static onCollect() {
-        gameSettings.coins += Math.round(gameSettings.currentBlockValue);
-
-        if (gameSettings.soundEnabled && gameSettings.assetManager) {
-            const coin = gameSettings.assetManager.getAsset('coinSound');
-            if (coin && coin.isLoaded()) {
-                // Make sure we use the current SFX volume setting
-                const volume = typeof gameSettings.sfxVolume === 'number' ? gameSettings.sfxVolume : 1.0;
-                coin.setVolume(volume);
-                coin.play();
-            }
-        }
-
-        if (gameSettings.eventBus) {
-            gameSettings.eventBus.emit('coinsChanged', gameSettings.coins);
+        // Update coins using the standardized method
+        gameSettings.updateCoins(Math.round(gameSettings.currentBlockValue));
+        
+        // Play coin sound using the sound manager if available
+        if (gameSettings.soundEnabled && gameSettings.soundManager) {
+            gameSettings.soundManager.playSound('coinSound');
         }
     }
 }

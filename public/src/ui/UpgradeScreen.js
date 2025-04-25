@@ -1,49 +1,44 @@
-﻿import { upgrades } from '../upgrades.js';
+﻿import { upgradeSystem } from '../upgrades.js';
 import { gameSettings } from '../gameSettings.js';
+import { UI } from './helpers/UIHelper.js';
+
+// Get upgrades from the upgradeSystem
+const upgrades = upgradeSystem.getAllUpgrades();
 
 export function drawUpgradeScreen(p) {
-    p.push();
+    // Draw the panel using the UI helper
+    const panel = UI.drawPanel(p, {
+        widthPercent: 0.6,
+        heightPercent: 0.6,
+        background: '#222',
+        border: '#fff'
+    });
+    
+    // Draw title and coins
+    UI.drawTitle(
+        p, 
+        'Upgrade Shop', 
+        `Coins: ${gameSettings.coins.toFixed(0)}`,
+        panel.centerX,
+        panel.y + 30,
+        { titleColor: '#fff', subtitleColor: '#fff' }
+    );
 
-    p.rectMode(p.CORNER);
-
-    // 1. Full‑screen dark overlay
-    p.fill(0, 160);
-    p.noStroke();
-    p.rect(0, 0, p.width, p.height);
-
-    // 2. Compute panel size (60%×60% of canvas)
-    const panelW = p.width * 0.6;
-    const panelH = p.height * 0.6;
-
-    // 3. Translate origin so (0,0) is top‑left of the centered panel
-    p.translate((p.width - panelW) / 2, (p.height - panelH) / 2);
-
-    // 4. Draw panel background
-    p.fill('#222');
-    p.stroke('#fff');
-    p.strokeWeight(2);
-    p.rect(0, 0, panelW, panelH, 20);
-
-    // 5. Title and Coins
-    p.textSize(24);
-    p.fill(0);
-    p.textAlign(p.CENTER, p.CENTER);
-    p.text('Upgrade Shop', panelW / 2, 30);
-    p.textSize(18);
-    p.text(`Coins: ${gameSettings.coins.toFixed(0)}`, panelW / 2, 60);
-
-    // 6. Grid setup
+    // Get upgrades
+    const upgrades = upgradeSystem.getAllUpgrades();
+    
+    // Grid setup
     const cols = 3;
     const gap = 16;
-    const btnW = (panelW - gap * (cols + 1)) / cols;
+    const btnW = (panel.width - gap * (cols + 1)) / cols;
     const btnH = 80; // Increased height to accommodate more text
-    const startY = 100; // space under title and coins
+    const startY = panel.y + 100; // space under title and coins
 
-    // 7. Draw each upgrade button
+    // Draw each upgrade button
     upgrades.forEach((upg, idx) => {
         const col = idx % cols;
         const row = Math.floor(idx / cols);
-        const bx = gap + col * (btnW + gap);
+        const bx = panel.x + gap + col * (btnW + gap);
         const by = startY + row * (btnH + gap);
 
         const canAfford = gameSettings.coins >= upg.cost;
@@ -51,12 +46,22 @@ export function drawUpgradeScreen(p) {
         const nextValue = upg.getValue(upg.level + 1);
         const valueIncrease = nextValue - currentValue;
 
-        // 7a. Button bg
-        p.fill(canAfford ? '#555' : '#333');
-        p.stroke(canAfford ? '#888' : '#666');
-        p.rect(bx, by, btnW, btnH, 10);
+        // Draw button background
+        UI.drawButton(
+            p, 
+            bx, 
+            by, 
+            btnW, 
+            btnH, 
+            '', // No label - we'll draw it separately
+            {
+                background: canAfford ? '#555' : '#333',
+                cornerRadius: 10
+            }
+        );
 
-        // 7b. Button text
+        // Draw button text
+        p.push();
         p.noStroke();
         p.fill('#fff');
         p.textSize(16);
@@ -94,13 +99,14 @@ export function drawUpgradeScreen(p) {
             bx + btnW / 2,
             by + 65
         );
+        p.pop();
     });
 
-    // 8. Instructions
+    // Draw instructions at the bottom
+    p.push();
     p.fill('#fff');
     p.textSize(16);
     p.textAlign(p.CENTER, p.BOTTOM);
-    p.text("Click an upgrade to purchase | Press 'ESC' to return to game", panelW / 2, panelH - 20);
-
+    p.text("Click an upgrade to purchase | Press 'ESC' to return to game", panel.centerX, panel.y + panel.height - 20);
     p.pop();
 }

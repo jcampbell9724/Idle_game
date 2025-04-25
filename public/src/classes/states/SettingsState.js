@@ -9,19 +9,19 @@ export class SettingsState extends BaseState {
         this.resetButtonHitbox = null; // For the reset button
     }
 
-    enter() {
+    onEnter() {
         console.log("⚙️ Entering settings menu...");
         
-        // Update the HTML slider elements to match current settings
+        // Update the HTML slider elements to match current settings from soundManager
         const musicSlider = document.getElementById('music-slider');
         if (musicSlider) {
-            musicSlider.value = gameSettings.musicVolume;
+            musicSlider.value = gameSettings.soundManager?.settings.musicVolume || 0;
             musicSlider.style.display = 'block';
         }
         
         const sfxSlider = document.getElementById('sfx-slider');
         if (sfxSlider) {
-            sfxSlider.value = gameSettings.sfxVolume;
+            sfxSlider.value = gameSettings.soundManager?.settings.sfxVolume || 0;
             sfxSlider.style.display = 'block';
         }
         
@@ -40,18 +40,20 @@ export class SettingsState extends BaseState {
         const musicLabel = document.getElementById('music-label');
         const sfxLabel = document.getElementById('sfx-label');
         
-        // Position the sliders to the left side of the panel
+        // Calculate panel dimensions - must match SettingsScreen.js
         const panelW = this.p.width * 0.6;
         const panelH = this.p.height * 0.6;
         const panelX = (this.p.width - panelW) / 2;
         const panelY = (this.p.height - panelH) / 2;
         
+        // Position sliders with proper spacing
         if (musicLabel) {
             musicLabel.style.position = 'absolute';
             musicLabel.style.left = (panelX + 50) + 'px'; // Left side of panel + margin
             musicLabel.style.top = (panelY + 100) + 'px';
             musicLabel.style.zIndex = '1001';
             musicLabel.style.fontFamily = "'Pixelify Sans', sans-serif";
+            musicLabel.style.color = 'white'; // Ensure text is visible
         }
         
         if (sfxLabel) {
@@ -60,10 +62,23 @@ export class SettingsState extends BaseState {
             sfxLabel.style.top = (panelY + 180) + 'px';
             sfxLabel.style.zIndex = '1001';
             sfxLabel.style.fontFamily = "'Pixelify Sans', sans-serif";
+            sfxLabel.style.color = 'white'; // Ensure text is visible
+        }
+        
+        // Ensure sliders are visible
+        const musicSlider = document.getElementById('music-slider');
+        const sfxSlider = document.getElementById('sfx-slider');
+        
+        if (musicSlider) {
+            musicSlider.style.zIndex = '1001';
+        }
+        
+        if (sfxSlider) {
+            sfxSlider.style.zIndex = '1001';
         }
     }
 
-    exit() {
+    onExit() {
         console.log("⚙️ Exiting settings menu...");
         
         // Hide all sliders and labels
@@ -85,19 +100,19 @@ export class SettingsState extends BaseState {
         }
     }
 
-    update() {
+    onUpdate() {
         // Update the back button hitbox
         this.updateHitboxes();
     }
 
     updateHitboxes() {
-        // Define panel dimensions (matching those in SettingsScreen.js)
+        // Calculate the panel dimensions - must match SettingsScreen.js
         const panelW = this.p.width * 0.6;
         const panelH = this.p.height * 0.6;
         const panelX = (this.p.width - panelW) / 2;
         const panelY = (this.p.height - panelH) / 2;
         
-        // Define back button dimensions
+        // Define back button dimensions - must match SettingsScreen.js
         const btnW = 120;
         const btnH = 40;
         const btnX = panelX + (panelW / 2) - (btnW / 2);
@@ -111,7 +126,7 @@ export class SettingsState extends BaseState {
             h: btnH
         };
         
-        // Define reset button dimensions
+        // Define reset button dimensions - must match SettingsScreen.js
         const resetBtnW = 120;
         const resetBtnH = 40;
         const resetBtnX = panelX + (panelW / 2) - (resetBtnW / 2);
@@ -126,7 +141,7 @@ export class SettingsState extends BaseState {
         };
     }
 
-    render() {
+    onRender() {
         drawSettingsScreen(this.p);
     }
 
@@ -159,9 +174,9 @@ export class SettingsState extends BaseState {
             
             // Ask for confirmation
             if (confirm('Are you sure you want to reset all progress? This cannot be undone!')) {
-                // Access initUpgrades from the window object
-                if (window.initUpgrades) {
-                    window.initUpgrades();
+                // Use the upgradeSystem to reset all upgrades
+                if (window.upgradeSystem) {
+                    window.upgradeSystem.resetAllUpgrades();
                 }
                 
                 // Clear saved data

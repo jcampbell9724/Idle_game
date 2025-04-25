@@ -1,16 +1,19 @@
 // src/sketch.js
 import { PLAYER_WIDTH, PLAYER_HEIGHT, CANNON_X_OFFSET, GROUND_OFFSET } from './config.js';
-import { upgrades, tryBuy, initUpgrades } from './upgrades.js';
+import { upgradeSystem } from './upgrades.js';
 import { Block } from './classes/Block.js';
 import { Player } from './classes/Player.js';
 import { Cannon } from './classes/Cannon.js';
 import { drawUpgradeScreen } from './ui/UpgradeScreen.js';
+import { drawStoreScreen } from './ui/StoreScreen.js';
+import { storeSystem } from './store.js';
 import { constrain } from './utils.js';
 import { gameSettings } from './gameSettings.js';
 import { GameState } from './classes/GameState.js';
 import { EventBus } from './events/EventBus.js';
 import { SaveManager } from './save/SaveManager.js';
 import { AssetManager } from './assets/AssetManager.js';
+import { SoundManager } from './audio/SoundManager.js';
 
 // expose for your cheat button
 window.gameSettings = gameSettings;
@@ -21,18 +24,22 @@ const sketch = (p) => {
     let eventBus;
     let saveManager;
     let assetManager; // Define here, instantiate in preload
-    let scoreEl;
+    let soundManager; // Define sound manager
     let coinsEl;
     let muteIndicator; // Element to show mute status
-    let resizeTimeout = null;
+    // Using window-level property instead of local variable for resize debounce
 
     // p.preload runs before setup() - ensures assets are loaded
     p.preload = () => {
         console.log('🌀 p5 instance preload() running');
-        assetManager = new AssetManager(p); // Create AssetManager here
-        assetManager.preload(); // Call its preload method
-        gameSettings.assetManager = assetManager;
-        gameSettings.soundEnabled = true;
+        
+        // Create asset manager and sound manager
+        assetManager = new AssetManager(p);
+        assetManager.preload();
+        
+        // Create sound manager (we'll connect it to eventBus in setup)
+        soundManager = new SoundManager(p, null);
+        
         console.log('🌀 p5 instance preload() finished.');
     };
 
@@ -65,21 +72,46 @@ const sketch = (p) => {
         // Initialize managers first
         eventBus = new EventBus();
         saveManager = new SaveManager();
-        // assetManager is already created in preload
         
-        // Set up gameSettings with eventBus
+        // Connect managers to eventBus
         gameSettings.eventBus = eventBus;
+        soundManager.eventBus = eventBus;
+        upgradeSystem.eventBus = eventBus;
+        storeSystem.setEventBus(eventBus); // Set EventBus on store system
+        gameSettings.soundManager = soundManager;
+        gameSettings.assetManager = assetManager;
+        gameSettings.soundEnabled = true;
+        
+        console.log('All managers connected to EventBus');
         
         window.gravity = p.createVector(0, 0.2 * (p.height / 600));
-        initUpgrades();
+        upgradeSystem.resetAllUpgrades();
+        
+        // Load sounds using SoundManager
+        soundManager.loadSound('coinSound', 'assets/coin.wav');
+        soundManager.loadSound('cannonSound', 'assets/cannon.wav');
+        soundManager.loadMusic('mainTheme', 'assets/main.wav');
         
         // Set up UI elements
         setupUI();
         
-        // Get the player sprite with fallback
+        // Get all player sprites with fallback
         let playerSprite = null;
+        let playerLeftSprite = null;
+        let playerRightSprite = null;
+        
         if (assetManager) {
+            // Make sure we load all player sprites
             playerSprite = assetManager.getAsset('player');
+            playerLeftSprite = assetManager.getAsset('player_left');
+            playerRightSprite = assetManager.getAsset('player_right');
+            
+            // Log sprite status to debug
+            console.log('Player sprites loaded:', {
+                default: playerSprite ? 'OK' : 'MISSING',
+                left: playerLeftSprite ? 'OK' : 'MISSING',
+                right: playerRightSprite ? 'OK' : 'MISSING'
+            });
         }
         
         // Sanity check the loaded sprite
@@ -102,20 +134,31 @@ const sketch = (p) => {
         
         // Initialize game objects after loading save data
         player = new Player(
-            p.width / 2,
+            p.width / 2, 
             p.height - PLAYER_HEIGHT / 2 - 10,
             PLAYER_WIDTH,
             PLAYER_HEIGHT,
-            playerSprite, // Pass the sprite (might be null, but Player handles that)
+            playerSprite,
             p,
-            eventBus
+            eventBus,
+            playerLeftSprite,  // Pass left sprite explicitly
+            playerRightSprite  // Pass right sprite explicitly
         );
         
         cannon = new Cannon(p.width - CANNON_X_OFFSET, p.height / 2, p, eventBus);
         
-        // Initialize game state manager last, after all other objects are ready
-        gameStateManager = new GameState(p, eventBus, saveManager, assetManager);
-        
+        // Instantiate GameStateManager after UI and Player Sprites are ready
+        // GameState now handles internal state creation
+        gameStateManager = new GameState(
+            p,
+            eventBus,
+            saveManager,
+            assetManager,
+            playerSprite,      // Pass default sprite
+            playerLeftSprite,  // Pass left sprite
+            playerRightSprite // Pass right sprite
+        );
+
         // Make gameStateManager globally accessible for state transitions
         window.gameStateManager = gameStateManager;
         
@@ -125,8 +168,8 @@ const sketch = (p) => {
     
     // Function to toggle mute state
     const toggleMute = () => {
-        // Use gameSettings.toggleMute() to handle mute logic
-        const isMuted = gameSettings.toggleMute();
+        // Use soundManager to handle mute logic
+        const isMuted = soundManager.toggleMute();
         
         // Update UI
         updateMuteUI();
@@ -144,7 +187,7 @@ const sketch = (p) => {
         if (muteIndicator) {
             muteIndicator.style.display = 'block';
             
-            if (gameSettings.isMuted) {
+            if (soundManager.settings.isMuted) {
                 muteIndicator.textContent = '🔇';
                 muteIndicator.title = 'Sound is muted (Press M to unmute)';
                 
@@ -156,8 +199,8 @@ const sketch = (p) => {
                 muteIndicator.title = 'Sound is on (Press M to mute)';
                 
                 // Update sliders to show current volumes
-                if (window.musicSlider) window.musicSlider.value = gameSettings.musicVolume;
-                if (window.sfxSlider) window.sfxSlider.value = gameSettings.sfxVolume;
+                if (window.musicSlider) window.musicSlider.value = soundManager.settings.musicVolume;
+                if (window.sfxSlider) window.sfxSlider.value = soundManager.settings.sfxVolume;
             }
         }
     };
@@ -233,8 +276,8 @@ const sketch = (p) => {
             
             .mute-indicator {
                 position: fixed;
-                top: 10px;
-                right: 160px;
+                bottom: 10px;
+                right: 10px;
                 font-size: 24px;
                 cursor: pointer;
                 z-index: 1000;
@@ -265,11 +308,7 @@ const sketch = (p) => {
         `;
         document.head.appendChild(uiCSS);
         
-        // Game score & coins
-        scoreEl = document.getElementById('score-display');
-        if (scoreEl) {
-            scoreEl.textContent = `Points: ${gameSettings.score || 0}`;
-        }
+        // Coins display only (score display removed - unused)
 
         coinsEl = document.getElementById('coins-display');
         if (coinsEl) {
@@ -282,8 +321,8 @@ const sketch = (p) => {
         // Add mute indicator
         muteIndicator = document.createElement('div');
         muteIndicator.className = 'mute-indicator';
-        muteIndicator.textContent = gameSettings.isMuted ? '🔇' : '🔊';
-        muteIndicator.title = gameSettings.isMuted ? 
+        muteIndicator.textContent = soundManager.settings.isMuted ? '🔇' : '🔊';
+        muteIndicator.title = soundManager.settings.isMuted ? 
             'Sound is muted (Press M to unmute)' : 
             'Sound is on (Press M to mute)';
         muteIndicator.addEventListener('click', toggleMute);
@@ -292,7 +331,9 @@ const sketch = (p) => {
         // Add key hints
         const keyHint = document.createElement('div');
         keyHint.className = 'key-hint';
-        keyHint.innerHTML = 'Keys: [U] Upgrades | [S] Settings | [M] Mute | [←→] Move';
+        keyHint.innerHTML = 'Keys: [U] Upgrades | [T] Store | [S] Settings | [M] Mute | [←→] Move | [ESC] Back';
+        keyHint.style.padding = '8px 12px';
+        keyHint.style.fontSize = '16px';
         document.body.appendChild(keyHint);
 
         // Update cheat button
@@ -303,10 +344,8 @@ const sketch = (p) => {
                 // Try to start music on button click
                 startMusic();
                 
-                gameSettings.coins += 1000;
-                if (eventBus) {
-                    eventBus.emit('coinsChanged', gameSettings.coins);
-                }
+                // Add coins using the updateCoins method
+                gameSettings.updateCoins(1000);
             });
         }
 
@@ -323,6 +362,25 @@ const sketch = (p) => {
                 }
             });
         }
+        
+        // Add store button
+        const storeBtn = document.createElement('button');
+        storeBtn.id = 'store-btn';
+        storeBtn.className = 'game-button';
+        storeBtn.textContent = 'Store';
+        storeBtn.style.position = 'fixed';
+        storeBtn.style.top = '10px';
+        storeBtn.style.right = '140px';
+        storeBtn.addEventListener('click', () => {
+            // Try to start music on button click
+            startMusic();
+            
+            if (gameStateManager) {
+                console.log('Store button clicked');
+                gameStateManager.changeState('store');
+            }
+        });
+        document.body.appendChild(storeBtn);
 
         // Music slider
         const musicLabel = document.createElement('label');
@@ -340,7 +398,7 @@ const sketch = (p) => {
         musicSlider.min = '0';
         musicSlider.max = '1';
         musicSlider.step = '0.01';
-        musicSlider.value = gameSettings.isMuted ? 0 : gameSettings.musicVolume;
+        musicSlider.value = soundManager.settings.isMuted ? 0 : soundManager.settings.musicVolume;
         musicSlider.style.display = 'block';
         musicSlider.style.margin = '5px 0';
         musicSlider.style.width = '200px';
@@ -349,18 +407,13 @@ const sketch = (p) => {
             const newVolume = parseFloat(e.target.value);
             
             // If volume is being changed from 0, unmute
-            if (gameSettings.isMuted && newVolume > 0) {
-                gameSettings.isMuted = false;
+            if (soundManager.settings.isMuted && newVolume > 0) {
+                soundManager.settings.isMuted = false;
                 updateMuteUI();
             }
             
-            gameSettings.musicVolume = newVolume;
-            
-            // Apply to actual music track if it exists
-            const musicTrack = gameSettings.musicTrack;
-            if (musicTrack && typeof musicTrack.setVolume === 'function') {
-                musicTrack.setVolume(newVolume);
-            }
+            // Set music volume
+            soundManager.setMusicVolume(newVolume);
         });
 
         musicLabel.appendChild(musicSlider);
@@ -382,7 +435,7 @@ const sketch = (p) => {
         sfxSlider.min = '0';
         sfxSlider.max = '1';
         sfxSlider.step = '0.01';
-        sfxSlider.value = gameSettings.isMuted ? 0 : gameSettings.sfxVolume;
+        sfxSlider.value = soundManager.settings.isMuted ? 0 : soundManager.settings.sfxVolume;
         sfxSlider.style.display = 'block';
         sfxSlider.style.margin = '5px 0';
         sfxSlider.style.width = '200px';
@@ -391,18 +444,13 @@ const sketch = (p) => {
             const newVolume = parseFloat(e.target.value);
             
             // If volume is being changed from 0, unmute
-            if (gameSettings.isMuted && newVolume > 0) {
-                gameSettings.isMuted = false;
+            if (soundManager.settings.isMuted && newVolume > 0) {
+                soundManager.settings.isMuted = false;
                 updateMuteUI();
             }
             
-            gameSettings.sfxVolume = newVolume;
-            
-            // Apply to coin sound if it exists
-            const coinSound = gameSettings.coinSfx;
-            if (coinSound && typeof coinSound.setVolume === 'function') {
-                coinSound.setVolume(newVolume);
-            }
+            // Set SFX volume
+            soundManager.setSfxVolume(newVolume);
         });
 
         sfxLabel.appendChild(sfxSlider);
@@ -430,7 +478,8 @@ const sketch = (p) => {
     };
 
     p.draw = () => {
-       // p.background('#ffe7de');
+        // Always clear the background with each frame
+        p.background('#1a1a2e'); // Dark blue background
         
         if (gameStateManager) {
             gameStateManager.update();
@@ -438,38 +487,10 @@ const sketch = (p) => {
         }
     };
 
-    const startMusic = () => {
-        // Safely check for audio context
-        try {
-            // Get audio context from p5 sound
-            if (p.getAudioContext && p.getAudioContext().state !== 'running') {
-                p.getAudioContext().resume().then(() => {
-                    console.log('Audio context resumed successfully');
-                    
-                    // Get and play the main theme if it's not already playing
-                    if (gameSettings.musicTrack && 
-                        typeof gameSettings.musicTrack.isPlaying === 'function' && 
-                        !gameSettings.musicTrack.isPlaying()) {
-                        
-                        // Apply the current volume setting
-                        if (typeof gameSettings.musicTrack.setVolume === 'function') {
-                            // If muted, set volume to 0
-                            const effectiveVolume = gameSettings.isMuted ? 0 : gameSettings.musicVolume;
-                            gameSettings.musicTrack.setVolume(effectiveVolume);
-                        }
-                        
-                        // Start playing
-                        if (typeof gameSettings.musicTrack.loop === 'function') {
-                            gameSettings.musicTrack.loop();
-                            console.log('Started main theme');
-                        }
-                    }
-                }).catch(err => {
-                    console.warn('Error resuming audio context:', err);
-                });
-            }
-        } catch (error) {
-            console.warn('Could not start music:', error);
+    const startMusic = async () => {
+        // Initialize audio context and play music using SoundManager
+        if (await soundManager.initAudioContext()) {
+            soundManager.playMusic('mainTheme', true);
         }
     };
 
@@ -482,9 +503,11 @@ const sketch = (p) => {
         startMusic();
 
         const currentState = gameStateManager.currentState; // Get current state
+        console.log(`Key pressed: '${p.key}' (code: ${p.keyCode}) in state: ${currentState}`);
 
         if (p.keyCode === p.ESCAPE) { // Handle Escape first
-            if (currentState === 'upgrade' || currentState === 'settings') {
+            if (currentState === 'upgrade' || currentState === 'settings' || currentState === 'store') {
+                console.log('ESC pressed, returning to playing state');
                 // Let the exit() method of the state handle cleanup
                 gameStateManager.changeState('playing'); 
                 return; // Don't process other keys
@@ -492,22 +515,41 @@ const sketch = (p) => {
             // No 'else' needed - Escape does nothing in 'playing' or 'menu' here
         } else if (p.key.toLowerCase() === 'u') {
             // Toggle between playing and upgrade
-            gameStateManager.changeState(currentState === 'playing' ? 'upgrade' : 'playing');
+            const newState = currentState === 'playing' ? 'upgrade' : 'playing';
+            console.log(`U key pressed, changing state to: ${newState}`);
+            gameStateManager.changeState(newState);
             return; // Don't process other keys
         } else if (p.key === ' ' && currentState === 'menu') {
             // Start game from menu
+            console.log('Space pressed in menu, starting game');
             gameStateManager.changeState('playing');
             return; // Don't process other keys
         } else if (p.key.toLowerCase() === 's') {
             // Toggle between playing/menu and settings
             if (currentState === 'playing' || currentState === 'menu') {
+                console.log('S key pressed, going to settings');
                 gameStateManager.changeState('settings');
                 return; // Don't process other keys
             } else if (currentState === 'settings') {
+                console.log('S key pressed in settings, returning to playing');
                 gameStateManager.changeState('playing');
                 return; // Don't process other keys
             }
+        } else if (p.key.toLowerCase() === 't') {
+            // Toggle between playing/menu and store
+            if (currentState === 'playing' || currentState === 'menu') {
+                console.log('T key pressed, going to store');
+                gameStateManager.changeState('store');
+                return;
+            } else if (currentState === 'store') {
+                console.log('T key pressed in store, returning to playing');
+                gameStateManager.changeState('playing');
+                return;
+            }
         }
+        
+        // Key wasn't handled above, pass to current state
+        console.log(`Delegating key press to current state handler: ${currentState}`)
 
         // Allow current state to handle other keys if needed (e.g., player movement)
         if (gameStateManager.states[currentState] && 
@@ -533,6 +575,10 @@ const sketch = (p) => {
                   gameStateManager.states.settings && 
                   typeof gameStateManager.states.settings.handleMousePress === 'function') {
             gameStateManager.states.settings.handleMousePress(p.mouseX, p.mouseY);
+        } else if (currentState === 'store' &&
+                  gameStateManager.states.store &&
+                  typeof gameStateManager.states.store.handleMousePress === 'function') {
+            gameStateManager.states.store.handleMousePress(p.mouseX, p.mouseY);
         }
     };
 
@@ -561,15 +607,11 @@ const sketch = (p) => {
         window.gravity = p.createVector(0, 0.2 * (p.height / 600));
         
         // Debounce save operation to prevent excessive saves during resize
-        if (resizeTimeout) {
-            clearTimeout(resizeTimeout);
-        }
-        
-        resizeTimeout = setTimeout(() => {
+        clearTimeout(window.idleGameResizeTimer);
+        window.idleGameResizeTimer = setTimeout(() => {
             if (saveManager) {
                 saveManager.save(gameSettings);
             }
-            resizeTimeout = null;
         }, 500); // Wait 500ms after last resize before saving
     };
 };

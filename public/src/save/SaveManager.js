@@ -1,4 +1,5 @@
-import { updateGlobalVariable } from '../upgrades.js';
+import { updateGlobalVariable, upgradeSystem } from '../upgrades.js';
+import { storeSystem } from '../store.js';
 
 export class SaveManager {
     constructor() {
@@ -22,17 +23,25 @@ export class SaveManager {
         if (!this.isStorageAvailable) return;
 
         try {
+            // Get store items for saving
+            const storeItems = storeSystem.getItems().map(item => ({
+                key: item.key,
+                purchased: item.purchased
+            }));
+            
             const saveData = {
                 gameSettings: gameSettings.toJSON(),
                 coins: gameSettings.coins,
-                upgrades: window.upgrades.map(upg => ({
+                upgrades: upgradeSystem.getAllUpgrades().map(upg => ({
                     key: upg.key,
                     level: upg.level,
                     cost: upg.cost
-                }))
+                })),
+                storeItems: storeItems // Add store items to save data
             };
+            
             localStorage.setItem('idleGameSave', JSON.stringify(saveData));
-            console.log('Game saved successfully');
+            console.log('Game saved successfully with', storeItems.length, 'store items');
         } catch (e) {
             console.error('Failed to save game:', e);
             // Try to clean up storage if it's full
@@ -78,14 +87,29 @@ export class SaveManager {
         if (!saveData) return;
         
         try {
+            console.log('Applying saved game data...');
+            
             // Apply saved game settings
             if (saveData.gameSettings) {
                 gameSettings.fromJSON(saveData.gameSettings);
+                console.log('Game settings restored');
+                
+                // Sync sound settings to the sound manager if available
+                if (gameSettings.soundManager) {
+                    // Set values directly to avoid triggering additional events
+                    gameSettings.soundManager.settings.musicVolume = gameSettings.musicVolume || 1.0;
+                    gameSettings.soundManager.settings.sfxVolume = gameSettings.sfxVolume || 1.0;
+                    gameSettings.soundManager.settings.isMuted = gameSettings.isMuted || false;
+                    gameSettings.soundManager.settings.previousMusicVolume = gameSettings.previousMusicVolume || 1.0;
+                    gameSettings.soundManager.settings.previousSfxVolume = gameSettings.previousSfxVolume || 1.0;
+                    console.log('Sound settings restored');
+                }
             }
 
             // Restore coins explicitly to ensure it's set
             if (typeof saveData.coins === 'number') {
                 gameSettings.coins = saveData.coins;
+                console.log(`Restored ${saveData.coins} coins`);
                 
                 // Emit event if eventBus exists
                 if (gameSettings.eventBus) {
@@ -95,15 +119,28 @@ export class SaveManager {
 
             // Restore upgrade levels and costs
             if (Array.isArray(saveData.upgrades)) {
+                console.log(`Restoring ${saveData.upgrades.length} upgrades`);
                 saveData.upgrades.forEach(savedUpg => {
-                    const upgrade = window.upgrades.find(u => u.key === savedUpg.key);
+                    const upgrade = upgradeSystem.getUpgrade(savedUpg.key);
                     if (upgrade) {
                         upgrade.level = savedUpg.level;
                         upgrade.cost = savedUpg.cost;
-                        updateGlobalVariable(upgrade);
+                        upgradeSystem._syncUpgradeWithGameSettings(savedUpg.key);
+                        console.log(`Restored upgrade: ${savedUpg.key} (level ${savedUpg.level})`);
                     }
                 });
             }
+            
+            // Restore store items' purchased status
+            if (Array.isArray(saveData.storeItems)) {
+                console.log(`Restoring ${saveData.storeItems.length} store items`);
+                // Use the loadSavedState method we added to StoreSystem
+                storeSystem.loadSavedState(saveData.storeItems);
+            } else {
+                console.log('No store items found in save data');
+            }
+            
+            console.log('Save data applied successfully');
         } catch (e) {
             console.error('Error applying save data:', e);
         }
