@@ -11,7 +11,7 @@ import {
  * currentCannonInterval is in seconds (we'll multiply by p.frameRate() when shooting).
  */
 export const gameSettings = {
-    upgradesUnlocked: false,
+    upgradesUnlocked: true,
     currentBlockValue: blockBaseValue,
     currentCannonInterval: baseShootIntervalSeconds,   // seconds between shots
     currentBlockDespawnTime: baseBlockDespawnTime,     // seconds until blocks despawn
